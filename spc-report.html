@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SPC Report</title>
+<style>
+  :root{
+    --accent:#3699ff;
+    --accent-cyan:#22b9ff;
+    --page-bg:#f3f6f9;
+    --card-bg:#ffffff;
+    --border:#e4e6ef;
+    --text:#3f4254;
+    --muted:#b5b5c3;
+    --filter-bg:#f4f5f7;
+    --table-head:#1e1e2d;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:13px;
+    color:var(--text);
+    background:var(--page-bg);
+    padding:18px 22px;
+  }
+
+  .page-title{
+    background:#fff;
+    border-left:4px solid var(--accent-cyan);
+    background:linear-gradient(90deg,#e9f6ff 0,transparent 12%);
+    padding:14px 18px;
+    font-size:18px;
+    font-weight:600;
+    color:#3f4254;
+    border-radius:4px 0 0 4px;
+    margin-bottom:16px;
+  }
+
+  .card{
+    background:var(--card-bg);
+    border-radius:6px;
+    box-shadow:0 0 16px rgba(0,0,0,.05);
+    overflow:hidden;
+  }
+
+  /* ---------- Filters ---------- */
+  .filters{
+    background:var(--filter-bg);
+    border:1px solid var(--border);
+    border-bottom:none;
+    padding:18px 20px 12px;
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:16px 26px;
+  }
+  .field{display:flex;flex-direction:column;gap:6px;min-width:0;}
+  .field label{font-size:11.5px;color:#7e8299;font-weight:600;}
+  .select-wrap{position:relative;}
+  .select-wrap select{
+    width:100%;
+    height:34px;
+    padding:0 30px 0 10px;
+    border:1px solid var(--border);
+    border-radius:4px;
+    background:#fff;
+    font-size:12px;
+    color:var(--text);
+    outline:none;
+    appearance:none;
+    -webkit-appearance:none;
+    cursor:pointer;
+  }
+  .select-wrap select:focus{border-color:var(--accent);}
+  .select-wrap .clear{
+    position:absolute;
+    right:9px;
+    top:50%;
+    transform:translateY(-50%);
+    color:#b5b5c3;
+    font-size:11px;
+    cursor:pointer;
+    line-height:1;
+    pointer-events:auto;
+  }
+  .select-wrap .clear:hover{color:#7e8299;}
+  .field input[type="date"]{
+    width:100%;
+    height:34px;
+    padding:0 10px;
+    border:1px solid var(--border);
+    border-radius:4px;
+    background:#fff;
+    font-size:12px;
+    color:#7e8299;
+    outline:none;
+  }
+  .field input[type="date"]:focus{border-color:var(--accent);}
+
+  .btn-view{
+    align-self:flex-end;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:4px;
+    padding:9px 26px;
+    font-size:12.5px;
+    font-weight:600;
+    cursor:pointer;
+    transition:background .15s;
+  }
+  .btn-view:hover{background:#1a86f5;}
+
+  /* ---------- Table ---------- */
+  .table-wrap{
+    border:1px solid var(--border);
+    overflow-x:auto;
+    background:#fff;
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    white-space:nowrap;
+    font-size:12px;
+  }
+  thead th{
+    background:var(--table-head);
+    color:#fff;
+    text-align:left;
+    padding:10px 14px;
+    font-weight:600;
+    font-size:11.5px;
+    letter-spacing:.2px;
+    position:sticky;
+    top:0;
+    z-index:1;
+  }
+  tbody td{
+    padding:8px 14px;
+    border-bottom:1px solid var(--border);
+    color:#3f4254;
+  }
+  tbody tr:nth-child(even){background:#fafbfc;}
+  tbody tr:hover{background:#f0f8ff;}
+
+  /* ---------- SPC Chart ---------- */
+  .chart-section{
+    background:#fff;
+    border:1px solid var(--border);
+    border-top:none;
+    padding:18px 20px 24px;
+  }
+  .chart-title{
+    font-size:17px;
+    color:#3f4254;
+    font-weight:500;
+    margin:2px 0 14px;
+  }
+  .chart-flex{display:flex;gap:18px;align-items:flex-start;}
+  .chart-area{flex:1;min-width:0;}
+  .chart-area svg{width:100%;height:auto;display:block;}
+  .legend{
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    padding-top:16px;
+    font-size:12.5px;
+    color:#3f4254;
+    min-width:110px;
+  }
+  .legend .item{display:flex;align-items:center;gap:9px;}
+  .legend .dot{width:11px;height:11px;border-radius:50%;flex:none;}
+
+  @media (max-width:1100px){ .filters{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:760px){
+    .filters{grid-template-columns:1fr;}
+    .chart-flex{flex-direction:column;}
+  }
+</style>
+</head>
+<body>
+
+  <div class="page-title">SPC Report</div>
+
+  <div class="card">
+    <!-- Filters -->
+    <form class="filters" onsubmit="return false;">
+      <div class="field">
+        <label for="productCriteria">Product Criteria</label>
+        <div class="select-wrap">
+          <select id="productCriteria">
+            <option>Finished Products</option>
+            <option>Raw Materials</option>
+            <option>Weight</option>
+            <option>Strength</option>
+          </select>
+          <span class="clear">&#10005;</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="productName">Product Name</label>
+        <div class="select-wrap">
+          <select id="productName">
+            <option>Akij Cement (Bulk)-PCC</option>
+            <option>OPC 53 Grade Cement</option>
+            <option>OPC 43 Grade Cement</option>
+            <option>CEM II / B-V 42.5N</option>
+          </select>
+          <span class="clear">&#10005;</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="sampleName">Sample Name</label>
+        <div class="select-wrap">
+          <select id="sampleName">
+            <option>PCC Cement</option>
+            <option>Plant Sample</option>
+            <option>Dispatch Sample</option>
+            <option>Quarry Sample</option>
+          </select>
+          <span class="clear">&#10005;</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="testName">Test Name</label>
+        <div class="select-wrap">
+          <select id="testName">
+            <option>Blaine</option>
+            <option>Compressive Strength</option>
+            <option>Soundness</option>
+            <option>Setting Time</option>
+            <option>Consistency</option>
+          </select>
+          <span class="clear">&#10005;</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="ingredientsName">Ingredients Name</label>
+        <div class="select-wrap">
+          <select id="ingredientsName">
+            <option>Physical (Cm2/gm)</option>
+            <option>Clinker</option>
+            <option>Gypsum</option>
+            <option>Fly Ash</option>
+            <option>Limestone</option>
+          </select>
+          <span class="clear">&#10005;</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="fromDate">From Date</label>
+        <input type="date" id="fromDate" value="2026-01-09">
+      </div>
+
+      <div class="field">
+        <label for="toDate">To Date</label>
+        <input type="date" id="toDate" value="2026-06-09">
+      </div>
+
+      <div class="field" style="justify-content:flex-end;">
+        <button type="submit" class="btn-view">View</button>
+      </div>
+    </form>
+
+    <!-- Table -->
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Variable</th>
+            <th>Test No</th>
+            <th>Test Result</th>
+            <th>Mean (&micro;)</th>
+            <th>Std Dev (&sigma;)</th>
+            <th>UCL</th>
+            <th>LCL</th>
+            <th>Standard/CL</th>
+            <th>USL</th>
+            <th>LSL</th>
+            <th>Cp</th>
+            <th>Cpk</th>
+          </tr>
+        </thead>
+        <tbody id="reportBody"></tbody>
+      </table>
+    </div>
+
+    <!-- SPC Chart -->
+    <div class="chart-section">
+      <div class="chart-title">Statistical Process Control (SPC) Chart</div>
+      <div class="chart-flex">
+        <div class="chart-area" id="chartArea"></div>
+        <div class="legend">
+          <div class="item"><span class="dot" style="background:#22c55e;"></span>Test Result</div>
+          <div class="item"><span class="dot" style="background:#3699ff;"></span>Mean (&micro;)</div>
+          <div class="item"><span class="dot" style="background:#ef4444;"></span>UCL</div>
+          <div class="item"><span class="dot" style="background:#ef4444;"></span>LCL</div>
+          <div class="item"><span class="dot" style="background:#111827;"></span>USL</div>
+          <div class="item"><span class="dot" style="background:#111827;"></span>LSL</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  /* ---------- Data ---------- */
+  const RESULTS = [4417,4056,4079,4104,4024,4106,4119,4199,4105,4068,4014,4079,4174,4186];
+  const MEAN = 4123.57;
+  const STD  = 101.08;
+  const UCL  = 4426.83;
+  const LCL  = 3820.32;
+  const CL   = 3750;
+  const USL  = 4000;
+  const LSL  = 3500;
+  const CP   = 0.82;
+  const CPK  = -0.41;
+
+  /* ---------- Table ---------- */
+  (function buildTable(){
+    const body = document.getElementById('reportBody');
+    body.innerHTML = RESULTS.map(function(v, i){
+      return '<tr>' +
+        '<td>X' + (i + 1) + '</td>' +
+        '<td>' + (i + 1) + '</td>' +
+        '<td>' + v + '</td>' +
+        '<td>' + MEAN.toFixed(2) + '</td>' +
+        '<td>' + STD.toFixed(2) + '</td>' +
+        '<td>' + UCL.toFixed(2) + '</td>' +
+        '<td>' + LCL.toFixed(2) + '</td>' +
+        '<td>' + CL.toFixed(0) + '</td>' +
+        '<td>' + USL.toFixed(0) + '</td>' +
+        '<td>' + LSL.toFixed(0) + '</td>' +
+        '<td>' + CP.toFixed(2) + '</td>' +
+        '<td>' + CPK.toFixed(2) + '</td>' +
+      '</tr>';
+    }).join('');
+  })();
+
+  /* ---------- SPC Chart (pure SVG) ---------- */
+  (function drawChart(){
+    const W = 1000, H = 340;
+    const m = { top:20, right:24, bottom:34, left:64 };
+    const plotW = W - m.left - m.right;
+    const plotH = H - m.top - m.bottom;
+
+    const values = RESULTS.concat([MEAN, UCL, LCL, CL, USL, LSL]);
+    let yMin = Math.min.apply(null, values);
+    let yMax = Math.max.apply(null, values);
+    const pad = (yMax - yMin) * 0.08 || 1;
+    yMin -= pad; yMax += pad;
+
+    const xAt = i => m.left + (plotW * i) / (RESULTS.length - 1);
+    const yAt = v => m.top + plotH - ((v - yMin) / (yMax - yMin)) * plotH;
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.style.height = '340px';
+
+    const el = (tag, attrs) => {
+      const n = document.createElementNS(NS, tag);
+      for (const k in attrs) n.setAttribute(k, attrs[k]);
+      return n;
+    };
+
+    // y gridlines + labels
+    const ticks = 6;
+    for (let t = 0; t <= ticks; t++){
+      const val = yMin + ((yMax - yMin) * t) / ticks;
+      const y = yAt(val);
+      svg.appendChild(el('line', { x1:m.left, y1:y, x2:W - m.right, y2:y, stroke:'#eef1f5', 'stroke-width':1 }));
+      const lbl = el('text', { x:m.left - 10, y:y + 4, 'text-anchor':'end', 'font-size':11, fill:'#9aa2b1' });
+      lbl.textContent = Math.round(val);
+      svg.appendChild(lbl);
+    }
+
+    // x axis labels
+    RESULTS.forEach(function(_, i){
+      const x = xAt(i);
+      const lbl = el('text', { x:x, y:H - m.bottom + 18, 'text-anchor':'middle', 'font-size':10.5, fill:'#9aa2b1' });
+      lbl.textContent = 'X' + (i + 1);
+      svg.appendChild(lbl);
+    });
+
+    // horizontal reference lines
+    function hline(value, color, dashed){
+      svg.appendChild(el('line', {
+        x1:m.left, y1:yAt(value), x2:W - m.right, y2:yAt(value),
+        stroke:color, 'stroke-width':dashed ? 1.6 : 2,
+        'stroke-dasharray': dashed ? '7 6' : '0'
+      }));
+    }
+    hline(UCL, '#ef4444', true);
+    hline(LCL, '#ef4444', true);
+    hline(USL, '#111827', false);
+    hline(LSL, '#111827', false);
+    hline(MEAN, '#3699ff', false);
+
+    // test result line
+    const pts = RESULTS.map((v, i) => xAt(i) + ',' + yAt(v)).join(' ');
+    svg.appendChild(el('polyline', {
+      points: pts, fill:'none', stroke:'#22c55e', 'stroke-width':2.5,
+      'stroke-linejoin':'round', 'stroke-linecap':'round'
+    }));
+
+    // markers
+    RESULTS.forEach(function(v, i){
+      svg.appendChild(el('circle', { cx:xAt(i), cy:yAt(v), r:3, fill:'#fff', stroke:'#22c55e', 'stroke-width':2 }));
+    });
+
+    document.getElementById('chartArea').appendChild(svg);
+  })();
+</script>
+</body>
+</html>
