@@ -1638,23 +1638,10 @@
     });
   }
   function cloudGet(params) {
-    var url = cloudUrl_(params);
-    return fetch(url, { method: 'GET', redirect: 'follow' })
-      .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.text();
-      })
-      .then(function (txt) {
-        var j = parseCloud_(txt);
-        if (!j.ok) throw new Error(j.error || 'Google Sheet returned an error.');
-        return j;
-      })
-      .catch(function () {
-        return jsonpGet_(url).then(function (j) {
-          if (!j || !j.ok) throw new Error((j && j.error) || 'Google Sheet returned an error.');
-          return j;
-        });
-      });
+    return jsonpGet_(cloudUrl_(params)).then(function (j) {
+      if (!j || !j.ok) throw new Error((j && j.error) || 'Google Sheet returned an error.');
+      return j;
+    });
   }
   function cloudJsonpWrite(payload) {
     var params = { action: payload.action };
