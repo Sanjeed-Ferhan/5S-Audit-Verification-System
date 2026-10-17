@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>WorkCenter Map · ACCL</title>
+<title>WorkCenter Map · SBU</title>
 <meta name="theme-color" content="#1F4E78">
 <meta name="description" content="Capture factory work center locations with GPS, name them, and view them live on a satellite map.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231F4E78'/%3E%3Cpath d='M32 12c-8 0-14 6-14 14 0 10 14 26 14 26s14-16 14-26c0-8-6-14-14-14z' fill='%2317A589'/%3E%3Ccircle cx='32' cy='26' r='5' fill='%23fff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   :root{
@@ -34,6 +35,14 @@
   .gps-pill.live .dot{background:#4ade80;box-shadow:0 0 0 4px rgba(74,222,128,.22)}
   .gps-pill.warn .dot{background:#fbbf24}
   .gps-pill.bad .dot{background:#f87171}
+  .sbu-wrap{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.18);border-radius:9px;padding:3px 7px;transition:.15s}
+  .sbu-wrap:focus-within{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.45)}
+  .sbu-wrap .lbl{font-size:10px;font-weight:800;letter-spacing:.5px;color:#bcd3e8}  .sbu-wrap select{width:auto;background:transparent;border:none;color:#fff;font-size:12px;
+    font-weight:800;padding:3px 2px;outline:none;cursor:pointer}
+  .sbu-wrap select option{background:#fff;color:#1f2a33;font-weight:600}
+  .sbu-chip{display:inline-block;font-size:10px;font-weight:800;letter-spacing:.4px;background:#eef4f9;
+    color:var(--navy);border:1px solid #dbe7f1;border-radius:5px;padding:2px 6px;white-space:nowrap}
 
   .nav{background:#fff;border-bottom:1px solid var(--line);display:flex;gap:2px;padding:0 14px;overflow-x:auto}
   .nav button{background:none;border:none;padding:13px 15px;cursor:pointer;color:var(--muted);
@@ -128,11 +137,13 @@
   .map-toolbar select{width:auto;background:rgba(255,255,255,.95);box-shadow:0 2px 10px rgba(15,40,65,.14);
     padding:8px 10px;font-size:12px;font-weight:700;border-color:rgba(210,222,232,.9);color:var(--navy)}
 
-  .nearest-banner{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:600;
+  .nearest-banner{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);z-index:600;
     background:rgba(31,78,120,.94);color:#fff;border-radius:999px;padding:9px 18px;font-size:12.5px;
-    box-shadow:0 6px 20px rgba(10,30,50,.25);display:flex;align-items:center;gap:12px;white-space:nowrap}
-  .nearest-banner b{font-size:13px}
+    box-shadow:0 6px 20px rgba(10,30,50,.25);display:flex;align-items:center;justify-content:center;
+    gap:12px;white-space:nowrap;flex-wrap:wrap;row-gap:4px;max-width:calc(100% - 24px)}
+  .nearest-banner b{font-size:13px;max-width:min(46vw,280px);overflow:hidden;text-overflow:ellipsis}
   .nearest-banner .d{font-weight:800;color:#8fe3c6;font-variant-numeric:tabular-nums}
+  .nearest-banner .sbu-chip{background:rgba(255,255,255,.16);color:#fff;border-color:rgba(255,255,255,.22)}
   .nearest-banner .at{background:#17A589;border-radius:999px;padding:2px 9px;font-size:10px;
     font-weight:800;letter-spacing:.4px;text-transform:uppercase}
 
@@ -167,6 +178,22 @@
   .actions .btn{padding:6px 9px;font-size:11px}
   .empty{padding:34px 18px;text-align:center;color:var(--muted)}
   .empty b{display:block;color:var(--ink);margin-bottom:4px}
+
+  /* ---------- cloud sync ---------- */
+  .cloud-grid{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:12px;align-items:end}
+  .cloud-grid .full{grid-column:1/-1}
+  .cloud-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+  .cloud-actions .spacer{flex:1}
+  .chk{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin:12px 0 0}
+  .chk input{width:auto;accent-color:var(--navy)}
+  .cloud-pending{font-size:11.5px;font-weight:700;color:var(--muted)}
+  .cloud-msg{font-size:12px;color:var(--muted);margin-top:10px;min-height:18px;line-height:1.5}
+  details.setup{border-top:1px solid var(--line);margin-top:14px;padding-top:12px}
+  details.setup summary{cursor:pointer;font-weight:700;color:var(--navy);font-size:12.5px;outline:none}
+  .cloud-steps{font-size:12.5px;color:var(--muted);line-height:1.7;margin:10px 0 0;padding-left:20px}
+  .cloud-steps code{background:#f1f5f8;border:1px solid var(--line);border-radius:4px;padding:1px 4px;font-size:11.5px}
+  .cloud-steps b{color:var(--ink)}
+  .cloud-steps a{color:var(--navy);font-weight:700}
 
   .steps{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:6px}
   .step{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px}
@@ -256,18 +283,26 @@
   }
   @media (max-width:720px){
     .wrap{padding:12px}
-    .topbar{padding:10px 12px}
+    .topbar{padding:10px 12px;gap:6px}
+    .brand{font-size:13.5px;gap:9px}
+    .brand .mk{width:30px;height:30px;font-size:11px;border-radius:8px}
     .brand small{display:none}
+    .brand-map{display:none}
+    .sbu-wrap{padding:2px 4px}
+    .sbu-wrap .lbl{display:inline;font-size:9.5px}
+    .sbu-wrap select{font-size:11.5px}
+    .gps-pill{padding:6px 10px;font-size:11.5px}
     .nav{scrollbar-width:none}
     .nav::-webkit-scrollbar{display:none}
     .map-toolbar{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
     .map-toolbar::-webkit-scrollbar{display:none}
     .map-toolbar .btn,.map-toolbar select{flex:none}
     .map-shell{height:calc(100vh - 210px);min-height:420px;border-radius:11px}
-    .nearest-banner{top:64px;font-size:11.5px;padding:8px 13px;max-width:calc(100% - 24px);
-      overflow:hidden;text-overflow:ellipsis}
+    .nearest-banner{bottom:96px;font-size:11.5px;padding:8px 12px;gap:8px;max-width:calc(100% - 24px)}
+    .nb-label{display:none}
     .legend{display:none}
     .form-grid{grid-template-columns:1fr}
+    .cloud-grid{grid-template-columns:1fr}
     .table-hide{display:none}
     .map-status{display:none}
     .coord-grid{grid-template-columns:1fr 1fr}
@@ -283,9 +318,13 @@
 <header class="topbar">
   <div class="brand">
     <div class="mk">WC</div>
-    <div>WorkCenter Map<small>ACCL · factory location intelligence</small></div>
+    <div>WorkCenter<span class="brand-map"> Map</span><small>SBU-wise factory location intelligence</small></div>
   </div>
   <div class="spacer"></div>
+  <div class="sbu-wrap" id="sbuWrap" title="Filter every view by SBU">
+    <span class="lbl">SBU</span>
+    <select id="sbuSel" aria-label="SBU filter"></select>
+  </div>
   <div class="gps-pill" id="gpsPill"><span class="dot"></span><span id="gpsPillText">GPS idle</span></div>
 </header>
 
@@ -384,7 +423,7 @@
       <div class="row-between">
         <div>
           <h2>Registered work centers</h2>
-          <p class="desc">Every captured location, stored on this device. Export a JSON backup before switching phones.</p>
+          <p class="desc" id="listDesc">Every captured location, stored on this device. Export a JSON backup before switching phones.</p>
         </div>
         <button class="btn primary" id="btnAddManual">+ Add manually</button>
       </div>
@@ -403,6 +442,7 @@
           <thead>
             <tr>
               <th>Work center</th>
+              <th>SBU</th>
               <th>Zone</th>
               <th class="table-hide">Coordinates</th>
               <th>Accuracy</th>
@@ -415,9 +455,64 @@
         </table>
       </div>
       <div class="empty" id="listEmpty" hidden>
-        <b>No work centers yet</b>
-        Capture your first location from the Capture tab, or add one manually.
+        <b id="listEmptyTitle">No work centers yet</b>
+        <span id="listEmptyMsg">Capture your first location from the Capture tab, or add one manually.</span>
       </div>
+    </div>
+
+    <div class="card">
+      <div class="row-between">
+        <div>
+          <h2>Google Sheet sync</h2>
+          <p class="desc">Mirror work centers to a Google Sheet so every phone shares one live map. Location data syncs; photos stay on this device.</p>
+        </div>
+        <span class="status" id="cloudStatus">Not configured</span>
+      </div>
+
+      <div class="cloud-grid">
+        <div class="full">
+          <label class="fld" for="cloudUrl">Apps Script Web App URL</label>
+          <input type="text" id="cloudUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
+        </div>
+        <div>
+          <label class="fld" for="cloudToken">Sync token</label>
+          <input type="password" id="cloudToken" placeholder="Shared secret token" autocomplete="off">
+        </div>
+        <div class="cloud-actions" style="margin:0">
+          <button class="btn sm" id="btnCloudToken" type="button">Generate token</button>
+          <button class="btn sm primary" id="btnCloudSave" type="button">Save settings</button>
+        </div>
+      </div>
+
+      <label class="chk"><input type="checkbox" id="cloudAuto"> Sync automatically on save, delete and app open</label>
+
+      <div class="cloud-actions">
+        <button class="btn sm" id="btnCloudTest" type="button">Test connection</button>
+        <button class="btn sm" id="btnCloudPush" type="button">Push all to Sheet</button>
+        <button class="btn sm" id="btnCloudPull" type="button">Pull from Sheet</button>
+        <button class="btn sm teal" id="btnCloudSync" type="button">Sync now</button>
+        <div class="spacer"></div>
+        <span class="cloud-pending" id="cloudPending">No cloud sync yet</span>
+      </div>
+      <div class="cloud-msg" id="cloudMsg">Paste your Apps Script Web App URL and token to enable cloud sync.</div>
+
+      <details class="setup">
+        <summary>One-time Google Sheet setup</summary>
+        <ol class="cloud-steps">
+          <li>Create a Google Sheet (or open an existing one).</li>
+          <li>Open <b>Extensions → Apps Script</b>, delete the starter code, and paste the script
+            <a href="google-sheet-sync.gs" download>google-sheet-sync.gs</a>.</li>
+          <li>Set <code>TOKEN</code> in the script to a long random value, or set <code>SYNC_TOKEN</code> under
+            <b>Project Settings → Script properties</b>. Use the same token in this page.</li>
+          <li>Click <b>Deploy → New deployment → Web app</b>. Execute as <b>Me</b>, who has access <b>Anyone</b>.
+            Deploy and authorize.</li>
+          <li>Copy the Web App URL ending in <code>/exec</code>, paste it above, enter the token, tick auto-sync
+            and click <b>Save settings</b>.</li>
+          <li>Click <b>Test connection</b>, then <b>Push all to Sheet</b>. On other phones, use the same URL
+            and token and press <b>Pull from Sheet</b>.</li>
+        </ol>
+        <p class="cloud-msg">The token protects the endpoint — keep it private. Photos are not uploaded to the Sheet.</p>
+      </details>
     </div>
 
     <div class="card">
@@ -427,10 +522,11 @@
         <div class="step"><div class="n">1</div><b>Walk there</b><span>Stand at the work center or its operator station.</span></div>
         <div class="step"><div class="n">2</div><b>Get a fix</b><span>Wait 20–30 s until accuracy turns green.</span></div>
         <div class="step"><div class="n">3</div><b>Fine-tune</b><span>Tap the map to move the pin onto the exact spot.</span></div>
-        <div class="step"><div class="n">4</div><b>Name it</b><span>Add code, zone and category; attach a photo.</span></div>
+        <div class="step"><div class="n">4</div><b>Name it</b><span>Add code, SBU, zone and category; attach a photo.</span></div>
         <div class="step"><div class="n">5</div><b>Go live</b><span>Open Live map to see everything with your position.</span></div>
       </div>
       <ul class="tips">
+        <li>Use the <b>SBU</b> selector in the topbar to scope the capture map, live map, work center list and nearest-center distance.</li>
         <li>Indoor GPS drifts. Stand still, prefer green accuracy (&lt;10 m), and correct the pin by tapping the map.</li>
         <li>Use satellite view — the factory roof, silos and sheds make verification easy.</li>
         <li>Export JSON regularly; it is your backup and can be imported on another device.</li>
@@ -451,15 +547,19 @@
       <div class="form-grid">
         <div class="full">
           <label class="fld" for="fName">Work center name *</label>
-          <input type="text" id="fName" placeholder="e.g. Raw Mill 02" autocomplete="off">
+          <input type="text" id="fName" placeholder="e.g. Raw Mill 02" autocomplete="off" maxlength="120">
         </div>
         <div>
           <label class="fld" for="fCode">Code</label>
-          <input type="text" id="fCode" placeholder="WC-001" autocomplete="off">
+          <input type="text" id="fCode" placeholder="WC-001" autocomplete="off" maxlength="40">
+        </div>
+        <div>
+          <label class="fld" for="fSbu">SBU *</label>
+          <select id="fSbu"></select>
         </div>
         <div>
           <label class="fld" for="fZone">Zone / area</label>
-          <input type="text" id="fZone" placeholder="e.g. Raw mill section" list="zoneList" autocomplete="off">
+          <input type="text" id="fZone" placeholder="e.g. Raw mill section" list="zoneList" autocomplete="off" maxlength="80">
           <datalist id="zoneList"></datalist>
         </div>
         <div>
@@ -476,7 +576,7 @@
         </div>
         <div class="full">
           <label class="fld" for="fNotes">Notes</label>
-          <textarea id="fNotes" rows="2" placeholder="Equipment, floor, access notes…"></textarea>
+          <textarea id="fNotes" rows="2" placeholder="Equipment, floor, access notes…" maxlength="300"></textarea>
         </div>
         <div class="full">
           <label class="fld">Photo</label>
@@ -527,9 +627,24 @@
     office:      { label: 'Office',      color: '#2E86C1' },
     other:       { label: 'Other',       color: '#7F8C8D' }
   };
+  var DEFAULT_SBUS = [
+    { code: 'ACCL',  name: 'ACCL'  },
+    { code: 'AIL',   name: 'AIL'   },
+    { code: 'APFIL', name: 'APFIL' },
+    { code: 'MRML',  name: 'MRML'  },
+    { code: 'FAL',   name: 'FAL'   },
+    { code: 'M.OIL', name: 'M.Oil' },
+    { code: 'AAFL',  name: 'AAFL'  },
+    { code: 'ALEL',  name: 'ALEL'  },
+    { code: 'AEFML', name: 'AEFML' }
+  ];
 
   var centers = [];
-  var cfg = { basemap: 'hybrid', follow: true, trail: true, labels: false };
+  var cfg = { basemap: 'hybrid', follow: true, trail: true, labels: false,
+              sbu: 'ALL', customSbus: [],
+              cloud: { url: '', token: '', auto: false, lastSync: 0, lastError: '' },
+              deleted: [] };
+  var cloudBusy = false;
   var geo = { watchId: null, pos: null, acc: null, speed: null, heading: null,
               trail: [], last: 0, err: null, tracking: false, sim: false };
   var simTimer = null;
@@ -590,7 +705,69 @@
     if (s < 86400) return Math.round(s / 3600) + 'h ago';
     return Math.round(s / 86400) + 'd ago';
   }
+  function toMs(v) {
+    if (v === null || v === undefined || v === '') return 0;
+    if (typeof v === 'number') return isFinite(v) ? v : 0;
+    var n = Number(v);
+    if (isFinite(n)) return n;
+    var t = Date.parse(v);
+    return isFinite(t) ? t : 0;
+  }
   function catOf(c) { return CATS[c.category] || CATS.other; }
+  function normSbu(v) {
+    var s = String(v == null ? '' : v).trim().toUpperCase();
+    return s || 'ACCL';
+  }
+  function allSbus() {
+    var out = [], seen = {};
+    function add(code, name) {
+      code = normSbu(code);
+      if (seen[code]) {
+        if (name && seen[code].name === seen[code].code) seen[code].name = name;
+        return;
+      }
+      seen[code] = { code: code, name: name || code };
+      out.push(seen[code]);
+    }
+    DEFAULT_SBUS.forEach(function (s) { add(s.code, s.name); });
+    (cfg.customSbus || []).forEach(function (s) {
+      if (s && s.code) add(s.code, s.name);
+    });
+    centers.forEach(function (c) { if (c.sbu) add(c.sbu, null); });
+    return out;
+  }
+  function sbuName(code) {
+    var hit = allSbus().filter(function (s) { return s.code === code; })[0];
+    return hit ? hit.name : code;
+  }
+  function visibleCenters() {
+    return cfg.sbu === 'ALL' ? centers : centers.filter(function (c) { return c.sbu === cfg.sbu; });
+  }
+  function renderSbuOptions() {
+    var list = allSbus();
+    var top = $('#sbuSel');
+    if (top) {
+      var cur = cfg.sbu;
+      top.innerHTML = '<option value="ALL">All SBUs</option>' + list.map(function (s) {
+        return '<option value="' + esc(s.code) + '">' + esc(s.name) + '</option>';
+      }).join('');
+      var valid = cur === 'ALL' || list.some(function (s) { return s.code === cur; });
+      if (!valid) cfg.sbu = 'ALL';
+      top.value = cfg.sbu;
+      top.title = cfg.sbu === 'ALL' ? 'All SBUs' : sbuName(cfg.sbu);
+    }
+    var fs = $('#fSbu');
+    if (fs) {
+      var keep = fs.value;
+      fs.innerHTML = list.map(function (s) {
+        var label = String(s.name).toUpperCase() === s.code ? s.name : s.code + ' — ' + s.name;
+        return '<option value="' + esc(s.code) + '">' + esc(label) + '</option>';
+      }).join('') + '<option value="__new">+ New SBU…</option>';
+      if (keep && keep !== '__new' && list.some(function (s) { return s.code === keep; })) fs.value = keep;
+      else if (cfg.sbu !== 'ALL') fs.value = cfg.sbu;
+      else fs.value = list.some(function (s) { return s.code === 'ACCL'; }) ? 'ACCL' : (list[0] ? list[0].code : 'ACCL');
+    }
+  }
   function toast(msg, ms) {
     var t = $('#toast');
     t.textContent = msg;
@@ -610,6 +787,10 @@
         c.lat = num(c.lat); c.lng = num(c.lng);
         c.acc = isFinite(num(c.acc)) ? num(c.acc) : null;
         c.category = CATS[c.category] ? c.category : 'other';
+        c.sbu = normSbu(c.sbu);
+        c.createdAt = toMs(c.createdAt) || Date.now();
+        c.updatedAt = toMs(c.updatedAt) || c.createdAt;
+        c.syncAt = toMs(c.syncAt) || null;
         c.id = c.id || uid();
         return c;
       }) : [];
@@ -620,6 +801,21 @@
     } catch (e) {}
     if (cfg.basemap !== 'street' && cfg.basemap !== 'dark') cfg.basemap = 'hybrid';
     if (typeof cfg.labels !== 'boolean') cfg.labels = false;
+    if (!Array.isArray(cfg.customSbus)) cfg.customSbus = [];
+    if (typeof cfg.sbu !== 'string') cfg.sbu = 'ALL';
+    if (!cfg.cloud || typeof cfg.cloud !== 'object') cfg.cloud = {};
+    ['url', 'token', 'lastError'].forEach(function (k) {
+      if (typeof cfg.cloud[k] !== 'string') cfg.cloud[k] = '';
+    });
+    cfg.cloud.auto = !!cfg.cloud.auto;
+    cfg.cloud.lastSync = toMs(cfg.cloud.lastSync);
+    if (!Array.isArray(cfg.deleted)) cfg.deleted = [];
+    cfg.deleted = cfg.deleted.filter(function (d) {
+      return d && d.id;
+    }).map(function (d) {
+      return { id: String(d.id), at: toMs(d.at) };
+    });
+    renderSbuOptions();
     $('#basemapSel').value = cfg.basemap;
     $('#btnFollow').classList.toggle('on', !!cfg.follow);
     $('#btnLabels').classList.toggle('on', !!cfg.labels);
@@ -722,7 +918,7 @@
   function renderCaptureMarkers() {
     if (!cap.markers) return;
     cap.markers.clearLayers();
-    centers.forEach(function (c) {
+    visibleCenters().forEach(function (c) {
       L.marker([c.lat, c.lng], { icon: wcIcon(c), keyboard: false })
         .bindTooltip(c.name, { direction: 'top', offset: [0, -10], opacity: 0.95 })
         .on('click', function () { openEditor(c.id); })
@@ -810,8 +1006,9 @@
           if (act === 'edit') { liveMap.closePopup(); openEditor(id); }
           if (act === 'del') {
             if (confirm('Delete this work center?')) {
-              centers = centers.filter(function (c) { return c.id !== id; });
-              persist(); renderAll(); liveMap.closePopup(); toast('Work center deleted.');
+              removeWorkcenter(id);
+              liveMap.closePopup();
+              toast('Work center deleted.');
             }
           }
         };
@@ -821,7 +1018,7 @@
   function renderLiveMarkers() {
     if (!live.markers) return;
     live.markers.clearLayers();
-    centers.forEach(function (c) {
+    visibleCenters().forEach(function (c) {
       var m = L.marker([c.lat, c.lng], { icon: wcIcon(c) });
       m.bindPopup(function () { return popupHtml(c); }, { maxWidth: 300, minWidth: 230 });
       m.addTo(live.markers);
@@ -834,7 +1031,8 @@
     var img = c.photo ? '<img src="' + esc(c.photo) + '" alt="">' : '';
     return '<div class="pop">' +
       '<h4>' + esc(c.name) + '</h4>' +
-      '<div class="sub">' + esc(c.code || '') + (c.zone ? ' · ' + esc(c.zone) : '') + '</div>' +
+      '<div class="sub"><span class="sbu-chip">' + esc(sbuName(c.sbu || 'ACCL')) + '</span> ' +
+        esc(c.code || '') + (c.zone ? ' · ' + esc(c.zone) : '') + '</div>' +
       img +
       '<div class="meta">' +
         '<span style="color:' + cat.color + ';font-weight:700">' + cat.label + '</span>' +
@@ -969,23 +1167,28 @@
     updateTrackingUI(); updatePill();
   }
   function startSim() {
-    if (!centers.length) { toast('Capture at least one work center first, then simulate.'); return; }
+    var pool = visibleCenters();
+    if (!pool.length) {
+      toast(cfg.sbu === 'ALL' ? 'Capture at least one work center first, then simulate.' :
+        'No work centers in ' + sbuName(cfg.sbu) + ' — switch SBU or capture one first.');
+      return;
+    }
     if (geo.sim) { stopSim(); toast('Simulation stopped.'); return; }
     stopTracking();
     geo.sim = true;
     $('#btnSim').classList.add('on');
     $('#btnSim').textContent = 'Stop simulation';
 
-    var base = geo.pos ? geo.pos.slice() : [centers[0].lat + 0.00045, centers[0].lng + 0.0003];
+    var base = geo.pos ? geo.pos.slice() : [pool[0].lat + 0.00045, pool[0].lng + 0.0003];
     var lat = base[0], lng = base[1];
-    var target = centers[Math.floor(Math.random() * centers.length)];
+    var target = pool[Math.floor(Math.random() * pool.length)];
 
     function step() {
       if (!geo.sim) return;
       var here = [lat, lng], dest = [target.lat, target.lng];
       var d = haversine(here, dest);
       if (d < 7) {
-        var others = centers.filter(function (c) { return c.id !== target.id; });
+        var others = pool.filter(function (c) { return c.id !== target.id; });
         target = others.length ? others[Math.floor(Math.random() * others.length)] : target;
         dest = [target.lat, target.lng];
       }
@@ -1071,9 +1274,10 @@
     updatePinNote();
   }
   function nearestCenter() {
-    if (!geo.pos || !centers.length) return null;
+    var scope = visibleCenters();
+    if (!geo.pos || !scope.length) return null;
     var best = null;
-    centers.forEach(function (c) {
+    scope.forEach(function (c) {
       var d = haversine(geo.pos, [c.lat, c.lng]);
       if (!best || d < best.d) best = { c: c, d: d };
     });
@@ -1081,11 +1285,15 @@
     return best;
   }
   function updateNearestUI() {
+    var scope = visibleCenters();
     var best = nearestCenter();
     var box = $('#nearestBox');
     if (!centers.length) {
       box.className = 'nearest empty';
       box.textContent = 'No work centers yet — capture your first one.';
+    } else if (!scope.length) {
+      box.className = 'nearest';
+      box.textContent = 'No work centers assigned to ' + sbuName(cfg.sbu) + '. Choose “All SBUs” or another SBU above.';
     } else if (!best) {
       box.className = 'nearest';
       box.textContent = 'Start tracking to see your distance to the nearest work center.';
@@ -1095,7 +1303,8 @@
       box.innerHTML = '<div class="row"><span class="big">' + fmtDist(best.d) + '</span>' +
         '<span class="badge">' + esc(best.c.name) + '</span>' +
         (at ? '<span class="badge" style="background:#e7f8f0;color:#0d7a50">You are here</span>' : '') +
-        '</div><div style="margin-top:6px">Direction <b>' + best.br + '</b> · code <b>' + esc(best.c.code || '—') + '</b>' +
+        '</div><div style="margin-top:6px"><span class="sbu-chip">' + esc(sbuName(best.c.sbu || 'ACCL')) + '</span> ' +
+        'Direction <b>' + best.br + '</b> · code <b>' + esc(best.c.code || '—') + '</b>' +
         (best.c.zone ? ' · ' + esc(best.c.zone) : '') + '</div>';
     }
 
@@ -1103,7 +1312,8 @@
     if (best) {
       var at2 = best.d <= Math.max(geo.acc || 0, 15);
       banner.hidden = false;
-      banner.innerHTML = '<span>Nearest</span><b>' + esc(best.c.name) + '</b><span class="d">' +
+      banner.innerHTML = '<span class="nb-label">Nearest</span><span class="sbu-chip">' + esc(sbuName(best.c.sbu || 'ACCL')) + '</span>' +
+        '<b>' + esc(best.c.name) + '</b><span class="d">' +
         fmtDist(best.d) + '</span>' + (at2 ? '<span class="at">At location</span>' : '');
     } else {
       banner.hidden = true;
@@ -1114,13 +1324,14 @@
   function renderList() {
     var q = ($('#search').value || '').trim().toLowerCase();
     var zone = $('#zoneFilter').value || '';
+    var scope = visibleCenters();
     var body = $('#wcBody');
-    var rows = centers.slice().sort(function (a, b) {
+    var rows = scope.slice().sort(function (a, b) {
       return String(a.name).localeCompare(String(b.name));
     }).filter(function (c) {
       if (zone && (c.zone || '') !== zone) return false;
       if (!q) return true;
-      return [c.name, c.code, c.zone, c.notes].join(' ').toLowerCase().indexOf(q) >= 0;
+      return [c.name, c.code, c.zone, c.notes, c.sbu].join(' ').toLowerCase().indexOf(q) >= 0;
     });
 
     body.innerHTML = rows.map(function (c) {
@@ -1132,6 +1343,7 @@
            '<span class="pip" style="background:' + col + '"></span>') +
           '<span>' + esc(c.name) + '<small>' + esc(c.code || '—') + ' · ' + catOf(c).label + '</small></span>' +
         '</div></td>' +
+        '<td><span class="sbu-chip">' + esc(sbuName(c.sbu || 'ACCL')) + '</span></td>' +
         '<td>' + (c.zone ? esc(c.zone) : '<span style="color:#9aa7b2">—</span>') + '</td>' +
         '<td class="mono table-hide">' + fmtCoord(c.lat) + '<br>' + fmtCoord(c.lng) + '</td>' +
         '<td>' + (c.acc ? '±' + Math.round(c.acc) + ' m' : '—') + '</td>' +
@@ -1147,12 +1359,23 @@
     }).join('');
 
     $('#listEmpty').hidden = rows.length > 0;
-    $('#wcCount').textContent = centers.length;
+    $('#listEmptyTitle').textContent = !centers.length ? 'No work centers yet' :
+      (!scope.length ? 'No work centers in ' + sbuName(cfg.sbu) : 'No matching work centers');
+    $('#listEmptyMsg').textContent = !centers.length ?
+      'Capture your first location from the Capture tab, or add one manually.' :
+      (!scope.length ? 'Add one for this SBU, switch the SBU filter, or edit an existing work center to assign it.' :
+       'Try a different name, zone or zone filter.');
+    $('#wcCount').textContent = scope.length;
+    var scopeLabel = sbuName(cfg.sbu);
+    $('#listDesc').textContent = cfg.sbu === 'ALL' ?
+      'Every captured location across all SBUs, stored on this device. Export a JSON backup before switching phones.' :
+      'Showing ' + scope.length + ' work center' + (scope.length === 1 ? '' : 's') + ' for ' + scopeLabel +
+      ' · Switch SBU above to see the rest.';
     document.querySelector('.table-wrap').style.display = rows.length ? '' : 'none';
   }
   function renderZones() {
     var zones = {};
-    centers.forEach(function (c) { if (c.zone) zones[c.zone] = true; });
+    visibleCenters().forEach(function (c) { if (c.zone) zones[c.zone] = true; });
     var names = Object.keys(zones).sort();
     var sel = $('#zoneFilter'), cur = sel.value;
     sel.innerHTML = '<option value="">All zones</option>' +
@@ -1168,11 +1391,13 @@
       }).join('');
   }
   function renderAll() {
+    renderSbuOptions();
     renderCaptureMarkers();
     renderLiveMarkers();
     renderZones();
     renderList();
     updateNearestUI();
+    updateCloudUI();
   }
 
   /* ============================ views ============================ */
@@ -1225,12 +1450,14 @@
     var c = id ? centers.filter(function (x) { return x.id === id; })[0] : null;
     $('#edTitle').textContent = c ? 'Edit work center' : 'New work center';
     $('#edDelete').hidden = !c;
+    renderSbuOptions();
 
     var lat = coords ? coords.lat : (c ? c.lat : (geo.pos ? geo.pos[0] : DEFAULT_CENTER[0]));
     var lng = coords ? coords.lng : (c ? c.lng : (geo.pos ? geo.pos[1] : DEFAULT_CENTER[1]));
 
     $('#fName').value = c ? c.name : '';
     $('#fCode').value = c ? (c.code || '') : nextCode();
+    $('#fSbu').value = c ? c.sbu : (cfg.sbu !== 'ALL' ? cfg.sbu : ($('#fSbu').value || 'ACCL'));
     $('#fZone').value = c ? (c.zone || '') : '';
     $('#fCat').value = c ? (CATS[c.category] ? c.category : 'other') : 'production';
     $('#fNotes').value = c ? (c.notes || '') : '';
@@ -1269,10 +1496,13 @@
     if (!isFinite(lng) || lng < -180 || lng > 180) { toast('Longitude must be between -180 and 180.'); $('#fLng').focus(); return; }
 
     var existing = editingId ? centers.filter(function (c) { return c.id === editingId; })[0] : null;
+    var sbuVal = $('#fSbu').value;
+    if (!sbuVal || sbuVal === '__new') sbuVal = cfg.sbu !== 'ALL' ? cfg.sbu : 'ACCL';
     var obj = {
       id: editingId || uid(),
       name: name,
       code: $('#fCode').value.trim(),
+      sbu: normSbu(sbuVal),
       zone: $('#fZone').value.trim(),
       category: CATS[$('#fCat').value] ? $('#fCat').value : 'other',
       notes: $('#fNotes').value.trim(),
@@ -1290,21 +1520,26 @@
     persist();
     closeEditor();
     clearPending();
+    if (cfg.sbu !== 'ALL' && obj.sbu !== cfg.sbu) {
+      cfg.sbu = obj.sbu;
+      persistCfg();
+      renderSbuOptions();
+    }
     renderAll();
-    toast('Saved “' + name + '”.');
+    if (cloudReady() && cfg.cloud.auto) syncOne(obj);
+    toast('Saved “' + name + '”' + (cfg.sbu === 'ALL' ? '' : ' in ' + sbuName(obj.sbu)) + '.');
     if (currentView === 'map' && liveMap) {
       liveMap.setView([lat, lng], Math.max(liveMap.getZoom(), 18));
     }
   }
   function deleteEditing() {
     if (!editingId) return;
-    var c = centers.filter(function (x) { return x.id === editingId; })[0];
+    var id = editingId;
+    var c = centers.filter(function (x) { return x.id === id; })[0];
     if (!c) return;
     if (!confirm('Delete “' + c.name + '”?')) return;
-    centers = centers.filter(function (x) { return x.id !== editingId; });
-    persist();
     closeEditor();
-    renderAll();
+    removeWorkcenter(id);
     toast('Work center deleted.');
   }
 
@@ -1334,12 +1569,13 @@
   }
   function exportCsv() {
     if (!centers.length) { toast('Nothing to export yet.'); return; }
-    var head = ['name', 'code', 'zone', 'category', 'latitude', 'longitude', 'accuracy_m', 'notes', 'created_at'];
+    var head = ['sbu', 'name', 'code', 'zone', 'category', 'latitude', 'longitude', 'accuracy_m', 'notes', 'created_at'];
     var lines = [head.join(',')];
     centers.forEach(function (c) {
       lines.push([
-        c.name, c.code, c.zone, catOf(c).label, c.lat, c.lng, c.acc != null ? Math.round(c.acc) : '',
-        c.notes, c.createdAt ? new Date(c.createdAt).toISOString() : ''
+        sbuName(c.sbu || 'ACCL'), c.name, c.code, c.zone, catOf(c).label, c.lat, c.lng,
+        c.acc != null ? Math.round(c.acc) : '', c.notes,
+        c.createdAt ? new Date(c.createdAt).toISOString() : ''
       ].map(csvCell).join(','));
     });
     download('workcenters-' + stamp() + '.csv', lines.join('\r\n'), 'text/csv');
@@ -1363,6 +1599,7 @@
           id: raw.id || uid(),
           name: name,
           code: raw.code ? String(raw.code) : '',
+          sbu: raw.sbu ? normSbu(raw.sbu) : (cfg.sbu !== 'ALL' ? cfg.sbu : 'ACCL'),
           zone: raw.zone ? String(raw.zone) : '',
           category: CATS[raw.category] ? raw.category : 'other',
           notes: raw.notes ? String(raw.notes) : '',
@@ -1382,6 +1619,404 @@
     };
     reader.onerror = function () { toast('Could not read the file.'); };
     reader.readAsText(file);
+  }
+
+  /* ============================ google sheet sync ============================ */
+  function cloudReady() {
+    return !!(cfg.cloud && cfg.cloud.url && cfg.cloud.token);
+  }
+  function payloadFor(c) {
+    return {
+      id: c.id, sbu: c.sbu, name: c.name, code: c.code, zone: c.zone,
+      category: c.category, lat: c.lat, lng: c.lng, acc: c.acc,
+      notes: c.notes, createdAt: c.createdAt, updatedAt: c.updatedAt
+    };
+  }
+  function isDirty(c) {
+    return !c.syncAt || toMs(c.syncAt) < toMs(c.updatedAt);
+  }
+  function pendingSyncCount() {
+    var dirty = centers.filter(isDirty).length;
+    return dirty + (cfg.deleted || []).length;
+  }
+  function parseCloud_(txt) {
+    var j;
+    try { j = JSON.parse(String(txt)); }
+    catch (e) { throw new Error('Unexpected response from Apps Script. Check the deployment and access settings.'); }
+    return j;
+  }
+  function cloudUrl_(params) {
+    var base = (cfg.cloud.url || '').trim();
+    var sep = base.indexOf('?') >= 0 ? '&' : '?';
+    var qs = Object.keys(params).map(function (k) {
+      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('&');
+    return base + sep + 'token=' + encodeURIComponent(cfg.cloud.token || '') +
+      (qs ? '&' + qs : '') + '&_=' + Date.now();
+  }
+  function jsonpGet_(url) {
+    return new Promise(function (resolve, reject) {
+      var cb = 'wcm_cb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+      var script = document.createElement('script');
+      var timer = setTimeout(function () { finish(); reject(new Error('Google Sheet timed out.')); }, 25000);
+      function finish() {
+        clearTimeout(timer);
+        try { delete window[cb]; } catch (e) { window[cb] = undefined; }
+        if (script.parentNode) script.parentNode.removeChild(script);
+      }
+      window[cb] = function (data) { finish(); resolve(data); };
+      script.onerror = function () { finish(); reject(new Error('Could not reach the Google Sheet endpoint.')); };
+      script.src = url + '&callback=' + cb;
+      document.body.appendChild(script);
+    });
+  }
+  function cloudGet(params) {
+    var url = cloudUrl_(params);
+    return fetch(url, { method: 'GET', redirect: 'follow' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.text();
+      })
+      .then(function (txt) {
+        var j = parseCloud_(txt);
+        if (!j.ok) throw new Error(j.error || 'Google Sheet returned an error.');
+        return j;
+      })
+      .catch(function () {
+        return jsonpGet_(url).then(function (j) {
+          if (!j || !j.ok) throw new Error((j && j.error) || 'Google Sheet returned an error.');
+          return j;
+        });
+      });
+  }
+  function cloudJsonpWrite(payload) {
+    var params = { action: payload.action };
+    if (payload.action === 'upsert') params.record = JSON.stringify(payload.record || {});
+    else if (payload.action === 'delete') {
+      params.id = payload.id || '';
+      params.updatedAt = payload.updatedAt || Date.now();
+    }
+    return jsonpGet_(cloudUrl_(params)).then(function (j) {
+      if (!j || !j.ok) throw new Error((j && j.error) || 'Google Sheet rejected the change.');
+      return j;
+    });
+  }
+  function cloudPost(payload) {
+    // JSONP GET writes avoid Apps Script / browser CORS restrictions.
+    return cloudJsonpWrite(payload);
+  }
+  function cloudError(err) {
+    cfg.cloud.lastError = String((err && err.message) || err || 'Sync failed');
+    persistCfg();
+    updateCloudUI();
+  }
+  function cloudSetBusy(b) {
+    cloudBusy = !!b;
+    updateCloudUI();
+  }
+  function updateCloudUI() {
+    var st = $('#cloudStatus');
+    if (!st) return;
+    var c = cfg.cloud || {};
+    var ready = cloudReady();
+    var pending = pendingSyncCount();
+    var txt = 'Not configured', cls = 'status';
+    if (ready && cloudBusy) { txt = 'Syncing…'; cls += ' warn'; }
+    else if (ready && c.lastError) { txt = 'Sync error'; cls += ' bad'; }
+    else if (ready && pending) {
+      txt = pending + ' pending';
+      cls += ' warn';
+    }
+    else if (ready && c.lastSync) {
+      txt = 'Synced ' + new Date(c.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      cls += ' live';
+    } else if (ready) { txt = 'Ready'; }
+    st.textContent = txt;
+    st.className = cls;
+    var p = $('#cloudPending');
+    if (p) {
+      p.textContent = !ready ? 'No cloud sync yet' :
+        (pending ? pending + ' change' + (pending === 1 ? '' : 's') + ' pending' : 'All changes synced');
+    }
+    var m = $('#cloudMsg');
+    if (m) {
+      m.textContent = c.lastError ? c.lastError :
+        (ready ? 'Endpoint configured. Use Sync now, or Push all the first time, then Pull on other devices.' :
+         'Paste your Apps Script Web App URL and token to enable cloud sync.');
+    }
+  }
+  function populateCloudForm() {
+    if (!$('#cloudUrl')) return;
+    $('#cloudUrl').value = cfg.cloud.url || '';
+    $('#cloudToken').value = cfg.cloud.token || '';
+    $('#cloudAuto').checked = !!cfg.cloud.auto;
+    updateCloudUI();
+  }
+  function applyCloudHash() {
+    var h = String(location.hash || '').replace(/^#/, '');
+    if (!h || (h.indexOf('cloud=') < 0 && h.indexOf('token=') < 0)) return;
+    var params = {};
+    h.split('&').forEach(function (pair) {
+      var i = pair.indexOf('=');
+      if (i < 0) return;
+      try {
+        params[decodeURIComponent(pair.slice(0, i))] = decodeURIComponent(pair.slice(i + 1));
+      } catch (e) {}
+    });
+    if (!params.cloud && !params.token) return;
+    if (params.cloud) cfg.cloud.url = params.cloud.trim();
+    if (params.token) cfg.cloud.token = params.token.trim();
+    cfg.cloud.auto = params.auto !== '0';
+    cfg.cloud.lastError = '';
+    persistCfg();
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    if ($('#cloudUrl')) {
+      $('#cloudUrl').value = cfg.cloud.url;
+      $('#cloudToken').value = cfg.cloud.token;
+      $('#cloudAuto').checked = cfg.cloud.auto;
+      updateCloudUI();
+    }
+    toast('Google Sheet connection saved on this device.', 3200);
+  }
+  function readCloudForm(requireReady) {
+    cfg.cloud.url = ($('#cloudUrl').value || '').trim();
+    cfg.cloud.token = ($('#cloudToken').value || '').trim();
+    cfg.cloud.auto = !!$('#cloudAuto').checked;
+    if (!cfg.cloud.url || !cfg.cloud.token) {
+      if (!cfg.cloud.url && !cfg.cloud.token) {
+        persistCfg();
+        updateCloudUI();
+      }
+      if (requireReady) toast('Enter both the Apps Script Web App URL and the sync token.');
+      return false;
+    }
+    var localTest = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//i.test(cfg.cloud.url);
+    if (!/^https:\/\//i.test(cfg.cloud.url) && !localTest) {
+      toast('The Web App URL must start with https://');
+      return false;
+    }
+    if (cfg.cloud.url.indexOf('/exec') < 0) {
+      toast('Use the Web App URL that ends with /exec (not /dev).');
+      return false;
+    }
+    cfg.cloud.lastError = '';
+    persistCfg();
+    updateCloudUI();
+    return true;
+  }
+  function syncOne(c) {
+    if (!cloudReady() || !cfg.cloud.auto || !c) return;
+    var sent = c.updatedAt;
+    cloudPost({ action: 'upsert', record: payloadFor(c) }).then(function () {
+      var cur = centers.filter(function (x) { return x.id === c.id; })[0];
+      if (cur && toMs(cur.updatedAt) === toMs(sent)) {
+        cur.syncAt = sent;
+        persist();
+      }
+      cfg.cloud.lastSync = Date.now();
+      cfg.cloud.lastError = '';
+      persistCfg();
+      updateCloudUI();
+    }).catch(function (err) { cloudError(err); });
+  }
+  function cloudDelete(id, at) {
+    if (!cloudReady()) return;
+    cloudPost({ action: 'delete', id: id, updatedAt: at }).then(function () {
+      cfg.deleted = (cfg.deleted || []).filter(function (d) { return d.id !== id; });
+      cfg.cloud.lastSync = Date.now();
+      cfg.cloud.lastError = '';
+      persistCfg();
+      updateCloudUI();
+    }).catch(function (err) { cloudError(err); });
+  }
+  function removeWorkcenter(id) {
+    var c = centers.filter(function (x) { return x.id === id; })[0];
+    if (!c) return null;
+    centers = centers.filter(function (x) { return x.id !== id; });
+    var at = Date.now();
+    cfg.deleted = (cfg.deleted || []).filter(function (d) { return d.id !== id; });
+    cfg.deleted.push({ id: id, at: at });
+    persist();
+    persistCfg();
+    renderAll();
+    if (cloudReady() && cfg.cloud.auto) cloudDelete(id, at);
+    return c;
+  }
+  function pullFromSheet(silent) {
+    if (!cloudReady()) {
+      if (!silent) toast('Configure the Google Sheet URL and token first.');
+      return Promise.resolve(false);
+    }
+    return cloudGet({ action: 'list' }).then(function (res) {
+      var remotes = res.workcenters || [];
+      var remoteDeletes = res.deleted || [];
+      var added = 0, updated = 0, removed = 0;
+
+      remoteDeletes.forEach(function (d) {
+        var id = String(d.id || '');
+        if (!id) return;
+        var at = toMs(d.updatedAt);
+        var local = centers.filter(function (x) { return x.id === id; })[0];
+        if (local && at >= toMs(local.updatedAt)) {
+          centers = centers.filter(function (x) { return x.id !== id; });
+          removed++;
+        }
+        cfg.deleted = (cfg.deleted || []).filter(function (x) { return x.id !== id; });
+      });
+
+      remotes.forEach(function (r) {
+        try {
+          var id = String(r.id || '');
+          var lat = num(r.lat), lng = num(r.lng);
+          if (!id || !isFinite(lat) || !isFinite(lng)) return;
+          var rUpd = toMs(r.updatedAt);
+          var local = centers.filter(function (x) { return x.id === id; })[0];
+          var rec = {
+            id: id,
+            name: String(r.name || 'Untitled'),
+            code: String(r.code || ''),
+            sbu: normSbu(r.sbu),
+            zone: String(r.zone || ''),
+            category: CATS[r.category] ? r.category : 'other',
+            notes: String(r.notes || ''),
+            lat: lat, lng: lng,
+            acc: isFinite(num(r.acc)) ? num(r.acc) : null,
+            photo: local ? (local.photo || null) : null,
+            createdAt: toMs(r.createdAt) || Date.now(),
+            updatedAt: rUpd || Date.now(),
+            syncAt: rUpd || Date.now()
+          };
+          if (!local) { centers.push(rec); added++; }
+          else if (rUpd > toMs(local.updatedAt)) {
+            centers = centers.map(function (x) { return x.id === id ? rec : x; });
+            updated++;
+          } else if (rUpd === toMs(local.updatedAt)) {
+            local.syncAt = rUpd;
+          }
+        } catch (e) { /* skip a bad row */ }
+      });
+
+      cfg.cloud.lastError = '';
+      cfg.cloud.lastSync = Date.now();
+      persist();
+      persistCfg();
+      renderAll();
+      updateCloudUI();
+      if (!silent) {
+        toast('Pulled ' + remotes.length + ' rows · ' + added + ' new, ' + updated + ' updated' +
+          (removed ? ', ' + removed + ' removed' : '') + '.', 4200);
+      }
+      return true;
+    });
+  }
+  function syncNow() {
+    if (!cloudReady()) { toast('Configure the Google Sheet URL and token first.'); return; }
+    if (cloudBusy) return;
+    cloudSetBusy(true);
+    var tasks = [];
+
+    (cfg.deleted || []).slice().forEach(function (d) {
+      tasks.push(function () {
+        return cloudPost({ action: 'delete', id: d.id, updatedAt: d.at }).then(function () {
+          cfg.deleted = cfg.deleted.filter(function (x) { return x.id !== d.id; });
+          persistCfg();
+        });
+      });
+    });
+    centers.filter(isDirty).forEach(function (c) {
+      tasks.push(function () {
+        var sent = c.updatedAt;
+        return cloudPost({ action: 'upsert', record: payloadFor(c) }).then(function () {
+          var cur = centers.filter(function (x) { return x.id === c.id; })[0];
+          if (cur && toMs(cur.updatedAt) === toMs(sent)) {
+            cur.syncAt = sent;
+            persist();
+          }
+        });
+      });
+    });
+
+    var chain = Promise.resolve();
+    tasks.forEach(function (fn) { chain = chain.then(fn); });
+    chain
+      .then(function () { return pullFromSheet(true); })
+      .then(function () {
+        var p = pendingSyncCount();
+        toast(p ? 'Pushed changes; ' + p + ' still pending.' : 'Synced with Google Sheet.', 2600);
+      })
+      .catch(function (err) {
+        cloudError(err);
+        toast('Sync failed: ' + err.message, 4500);
+      })
+      .then(function () { cloudSetBusy(false); });
+  }
+  function pushAllToSheet() {
+    if (!readCloudForm(true)) return;
+    if (!centers.length) { toast('No work centers to push.'); return; }
+    if (!confirm('Push all ' + centers.length + ' work centers to the Google Sheet?')) return;
+    cloudSetBusy(true);
+    var list = centers.slice();
+    var chain = Promise.resolve();
+
+    (cfg.deleted || []).slice().forEach(function (d) {
+      chain = chain.then(function () {
+        return cloudPost({ action: 'delete', id: d.id, updatedAt: d.at }).then(function () {
+          cfg.deleted = cfg.deleted.filter(function (x) { return x.id !== d.id; });
+          persistCfg();
+        });
+      });
+    });
+    list.forEach(function (c) {
+      chain = chain.then(function () {
+        var sent = c.updatedAt;
+        return cloudPost({ action: 'upsert', record: payloadFor(c) }).then(function () {
+          var cur = centers.filter(function (x) { return x.id === c.id; })[0];
+          if (cur && toMs(cur.updatedAt) === toMs(sent)) {
+            cur.syncAt = sent;
+            persist();
+          }
+        });
+      });
+    });
+
+    chain
+      .then(function () {
+        cfg.cloud.lastError = '';
+        cfg.cloud.lastSync = Date.now();
+        persist();
+        persistCfg();
+        updateCloudUI();
+        toast('Pushed ' + list.length + ' work centers to the Google Sheet.', 3200);
+      })
+      .catch(function (err) {
+        cloudError(err);
+        toast('Push failed: ' + err.message, 4500);
+      })
+      .then(function () { cloudSetBusy(false); });
+  }
+  function testCloud() {
+    if (!readCloudForm(true)) return;
+    cloudSetBusy(true);
+    cloudGet({ action: 'ping' }).then(function (res) {
+      cfg.cloud.lastError = '';
+      persistCfg();
+      toast('Connected to “' + (res.sheet || 'Google Sheet') + '” (' + (res.rows || 0) + ' rows).', 3500);
+    }).catch(function (err) {
+      cloudError(err);
+      toast('Connection failed: ' + err.message, 4500);
+    }).then(function () { cloudSetBusy(false); });
+  }
+  function generateToken() {
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+    var bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    var token = '';
+    for (var i = 0; i < bytes.length; i++) token += chars[bytes[i] % chars.length];
+    $('#cloudToken').value = token;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(token).catch(function () {});
+    }
+    toast('Token generated and copied. Paste the same value into the Apps Script TOKEN.', 4200);
   }
 
   /* ============================ photo ============================ */
@@ -1438,7 +2073,7 @@
     };
     $('#btnFit').onclick = function () {
       if (!liveMap) return;
-      var pts = centers.map(function (c) { return [c.lat, c.lng]; });
+      var pts = visibleCenters().map(function (c) { return [c.lat, c.lng]; });
       if (geo.pos) pts.push(geo.pos);
       if (!pts.length) { toast('Nothing to fit yet.'); return; }
       cfg.follow = false;
@@ -1463,6 +2098,49 @@
       if (editMap) applyBase(editMap);
     };
 
+    $('#sbuSel').onchange = function () {
+      cfg.sbu = this.value || 'ALL';
+      persistCfg();
+      renderAll();
+      var n = visibleCenters().length;
+      if (currentView === 'map' && liveMap && cfg.sbu !== 'ALL' && n) {
+        cfg.follow = false;
+        $('#btnFollow').classList.remove('on');
+        persistCfg();
+        liveMap.fitBounds(
+          L.latLngBounds(visibleCenters().map(function (c) { return [c.lat, c.lng]; })).pad(0.35),
+          { maxZoom: 18 }
+        );
+      }
+      toast(cfg.sbu === 'ALL' ? 'Showing all SBUs.' :
+        'Showing ' + sbuName(cfg.sbu) + ' — ' + n + ' work center' + (n === 1 ? '' : 's') + '.', 1800);
+    };
+    $('#fSbu').onchange = function () {
+      if (this.value !== '__new') return;
+      var prev = cfg.sbu !== 'ALL' ? cfg.sbu : 'ACCL';
+      if (editingId) {
+        var ec = centers.filter(function (x) { return x.id === editingId; })[0];
+        if (ec) prev = ec.sbu;
+      }
+      var code = String(prompt('New SBU code (e.g. ACPL):', '') || '').trim().toUpperCase();
+      if (!code) { this.value = prev; return; }
+      if (!/^[A-Z0-9][A-Z0-9_-]{1,9}$/.test(code)) {
+        toast('Use 2–10 letters, digits, - or _ for the SBU code.');
+        this.value = prev;
+        return;
+      }
+      var found = allSbus().filter(function (s) { return s.code === code; })[0];
+      if (!found) {
+        var name = prompt('SBU name for ' + code + ' (optional):', '');
+        cfg.customSbus = cfg.customSbus || [];
+        cfg.customSbus.push({ code: code, name: String(name || '').trim() || code });
+        persistCfg();
+        toast('SBU ' + code + ' added.');
+      }
+      renderSbuOptions();
+      this.value = code;
+    };
+
     $('#btnAddManual').onclick = function () { openEditor(null, null); };
     $('#search').oninput = renderList;
     $('#zoneFilter').onchange = renderList;
@@ -1476,13 +2154,35 @@
         var c = centers.filter(function (x) { return x.id === id; })[0];
         if (!c) return;
         if (confirm('Delete “' + c.name + '”?')) {
-          centers = centers.filter(function (x) { return x.id !== id; });
-          persist(); renderAll(); toast('Work center deleted.');
+          removeWorkcenter(id);
+          toast('Work center deleted.');
         }
       }
     });
     $('#btnExportJson').onclick = exportJson;
     $('#btnExportCsv').onclick = exportCsv;
+    $('#btnCloudSave').onclick = function () {
+      if (readCloudForm(false)) toast('Google Sheet settings saved.');
+      else if (!cfg.cloud.url && !cfg.cloud.token) toast('Cloud sync disabled.', 2000);
+      else toast('Enter both the Web App URL and token to enable sync.');
+    };
+    $('#btnCloudToken').onclick = generateToken;
+    $('#btnCloudTest').onclick = testCloud;
+    $('#btnCloudPush').onclick = pushAllToSheet;
+    $('#btnCloudPull').onclick = function () {
+      if (!readCloudForm(true)) return;
+      cloudSetBusy(true);
+      pullFromSheet(false)
+        .catch(function (err) {
+          cloudError(err);
+          toast('Pull failed: ' + err.message, 4500);
+        })
+        .then(function () { cloudSetBusy(false); });
+    };
+    $('#btnCloudSync').onclick = function () {
+      if (!readCloudForm(true)) return;
+      syncNow();
+    };
     $('#importFile').onchange = function () {
       if (this.files && this.files[0]) importJson(this.files[0]);
       this.value = '';
@@ -1542,6 +2242,10 @@
       refreshLabels(liveMap);
     });
 
+    window.addEventListener('online', function () {
+      if (cloudReady() && cfg.cloud.auto) setTimeout(function () { syncNow(); }, 1200);
+    });
+
     setInterval(function () {
       updatePill();
       if (currentView === 'capture') { updateReadouts(); }
@@ -1552,6 +2256,7 @@
   /* ============================ boot ============================ */
   function init() {
     load();
+    applyCloudHash();
     var sel = $('#fCat');
     sel.innerHTML = Object.keys(CATS).map(function (k) {
       return '<option value="' + k + '">' + CATS[k].label + '</option>';
@@ -1560,6 +2265,7 @@
     bindUI();
     ensureCaptureMap();
     renderAll();
+    populateCloudForm();
     updateReadouts();
     updateTrackingUI();
     updatePill();
@@ -1567,6 +2273,15 @@
     if (!window.isSecureContext) $('#secureWarn').hidden = false;
 
     setTimeout(function () { startTracking(); }, 700);
+
+    if (cloudReady() && cfg.cloud.auto) {
+      setTimeout(function () {
+        cloudSetBusy(true);
+        pullFromSheet(true)
+          .catch(function (err) { cloudError(err); })
+          .then(function () { cloudSetBusy(false); });
+      }, 1800);
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
