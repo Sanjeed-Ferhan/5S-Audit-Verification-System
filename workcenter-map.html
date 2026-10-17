@@ -75,6 +75,8 @@
   .btn.sm{padding:7px 11px;font-size:12px;border-radius:8px}
   .btn.block{width:100%}
   .btn svg{width:15px;height:15px;flex:none}
+  #btnSync.syncing svg{animation:spin .9s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .btn-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
   .file{position:relative;overflow:hidden}
   .file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%}
@@ -423,9 +425,15 @@
       <div class="row-between">
         <div>
           <h2>Registered work centers</h2>
-          <p class="desc" id="listDesc">Every captured location, stored on this device. Export a JSON backup before switching phones.</p>
+          <p class="desc" id="listDesc">Every captured location, stored on this device. Use Sync to push local changes and pull the latest from the shared Google Sheet.</p>
         </div>
-        <button class="btn primary" id="btnAddManual">+ Add manually</button>
+        <div class="btn-row" style="margin:0">
+          <button class="btn" id="btnSync" type="button" title="Push local changes and pull updates from the shared Google Sheet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 1-15.5 6.3L3 16"/><path d="M3 12a9 9 0 0 1 15.5-6.3L21 8"/><path d="M3 21v-5h5"/><path d="M21 3v5h-5"/></svg>
+            <span class="lbl">Sync</span>
+          </button>
+          <button class="btn primary" id="btnAddManual">+ Add manually</button>
+        </div>
       </div>
 
       <div class="toolbar">
@@ -1327,7 +1335,7 @@
     $('#wcCount').textContent = scope.length;
     var scopeLabel = sbuName(cfg.sbu);
     $('#listDesc').textContent = cfg.sbu === 'ALL' ?
-      'Every captured location across all SBUs, stored on this device. Export a JSON backup before switching phones.' :
+      'Every captured location across all SBUs. Use Sync to update the shared Google Sheet; export JSON for a local backup.' :
       'Showing ' + scope.length + ' work center' + (scope.length === 1 ? '' : 's') + ' for ' + scopeLabel +
       ' · Switch SBU above to see the rest.';
     document.querySelector('.table-wrap').style.display = rows.length ? '' : 'none';
@@ -1671,6 +1679,13 @@
   }
   function cloudSetBusy(b) {
     cloudBusy = !!b;
+    var btn = $('#btnSync');
+    if (btn) {
+      var lbl = btn.querySelector('.lbl');
+      btn.disabled = cloudBusy;
+      btn.classList.toggle('syncing', cloudBusy);
+      if (lbl) lbl.textContent = cloudBusy ? 'Syncing…' : 'Sync';
+    }
     updateCloudUI();
   }
   function updateCloudUI() {
@@ -1870,10 +1885,10 @@
   }
   function syncNow(silent) {
     if (!cloudReady()) {
-      if (!silent) toast('Configure the Google Sheet URL and token first.');
-      return;
+      if (!silent) toast('Google Sheet connection is not configured.');
+      return Promise.resolve(false);
     }
-    if (cloudBusy) return;
+    if (cloudBusy) return Promise.resolve(false);
     cloudSetBusy(true);
     var tasks = [];
 
@@ -1900,7 +1915,7 @@
 
     var chain = Promise.resolve();
     tasks.forEach(function (fn) { chain = chain.then(fn); });
-    chain
+    return chain
       .then(function () { return pullFromSheet(true); })
       .then(function () {
         var p = pendingSyncCount();
@@ -2104,6 +2119,10 @@
     };
 
     $('#btnAddManual').onclick = function () { openEditor(null, null); };
+    $('#btnSync').onclick = function () {
+      if (cloudBusy) return;
+      syncNow(false);
+    };
     $('#search').oninput = renderList;
     $('#zoneFilter').onchange = renderList;
     $('#wcBody').addEventListener('click', function (e) {
