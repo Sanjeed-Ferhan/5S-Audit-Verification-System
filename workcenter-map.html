@@ -461,62 +461,6 @@
     </div>
 
     <div class="card">
-      <div class="row-between">
-        <div>
-          <h2>Google Sheet sync</h2>
-          <p class="desc">Pre-configured for everyone — every device shares the same Google Sheet automatically. Location data syncs; photos stay on this device.</p>
-        </div>
-        <span class="status" id="cloudStatus">Not configured</span>
-      </div>
-
-      <div class="cloud-grid">
-        <div class="full">
-          <label class="fld" for="cloudUrl">Apps Script Web App URL (shared)</label>
-          <input type="text" id="cloudUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
-        </div>
-        <div>
-          <label class="fld" for="cloudToken">Sync token (shared)</label>
-          <input type="password" id="cloudToken" placeholder="Shared secret token" autocomplete="off">
-        </div>
-        <div class="cloud-actions" style="margin:0">
-          <button class="btn sm" id="btnCloudToken" type="button">Generate token</button>
-          <button class="btn sm primary" id="btnCloudSave" type="button">Save settings</button>
-        </div>
-      </div>
-
-      <label class="chk"><input type="checkbox" id="cloudAuto"> Sync automatically on save, delete and app open</label>
-
-      <div class="cloud-actions">
-        <button class="btn sm" id="btnCloudTest" type="button">Test connection</button>
-        <button class="btn sm" id="btnCloudPush" type="button">Push all to Sheet</button>
-        <button class="btn sm" id="btnCloudPull" type="button">Pull from Sheet</button>
-        <button class="btn sm teal" id="btnCloudSync" type="button">Sync now</button>
-        <div class="spacer"></div>
-        <span class="cloud-pending" id="cloudPending">No cloud sync yet</span>
-      </div>
-      <div class="cloud-msg" id="cloudMsg">Connecting to the shared Google Sheet…</div>
-
-      <details class="setup">
-        <summary>Admin: connection setup (not needed for normal users)</summary>
-        <p class="cloud-msg" style="margin:0 0 8px">Normal users need no setup — the shared endpoint and token are built into this app and auto-sync is on by default.</p>
-        <ol class="cloud-steps">
-          <li>Create a Google Sheet (or open an existing one).</li>
-          <li>Open <b>Extensions → Apps Script</b>, delete the starter code, and paste the script
-            <a href="google-sheet-sync.gs" download>google-sheet-sync.gs</a>.</li>
-          <li>Set <code>TOKEN</code> in the script to a long random value, or set <code>SYNC_TOKEN</code> under
-            <b>Project Settings → Script properties</b>. Use the same token in this page.</li>
-          <li>Click <b>Deploy → New deployment → Web app</b>. Execute as <b>Me</b>, who has access <b>Anyone</b>.
-            Deploy and authorize.</li>
-          <li>Copy the Web App URL ending in <code>/exec</code>, paste it above, enter the token, tick auto-sync
-            and click <b>Save settings</b>.</li>
-          <li>Click <b>Test connection</b>, then <b>Push all to Sheet</b>. On other phones, use the same URL
-            and token and press <b>Pull from Sheet</b>.</li>
-        </ol>
-        <p class="cloud-msg">The shared sheet is link-accessible — keep the sheet link private. Photos are not uploaded to the Sheet.</p>
-      </details>
-    </div>
-
-    <div class="card">
       <h2>Field workflow</h2>
       <p class="desc">Repeat this for every machine, line, bay, store and utility area in the factory.</p>
       <div class="steps">
@@ -805,7 +749,6 @@
       if (rc) storedCfg = JSON.parse(rc) || null;
     } catch (e) {}
     if (storedCfg) cfg = Object.assign(cfg, storedCfg);
-    var hadCloud = !!(storedCfg && storedCfg.cloud && typeof storedCfg.cloud === 'object');
     if (cfg.basemap !== 'street' && cfg.basemap !== 'dark') cfg.basemap = 'hybrid';
     if (typeof cfg.labels !== 'boolean') cfg.labels = false;
     if (!Array.isArray(cfg.customSbus)) cfg.customSbus = [];
@@ -816,12 +759,14 @@
     });
     cfg.cloud.auto = !!cfg.cloud.auto;
     cfg.cloud.lastSync = toMs(cfg.cloud.lastSync);
-    if (!hadCloud && CLOUD_DEFAULT_URL && CLOUD_DEFAULT_TOKEN) {
+    if (CLOUD_DEFAULT_URL && CLOUD_DEFAULT_TOKEN) {
+      var cloudChanged = cfg.cloud.url !== CLOUD_DEFAULT_URL ||
+        cfg.cloud.token !== CLOUD_DEFAULT_TOKEN || !cfg.cloud.auto;
       cfg.cloud.url = CLOUD_DEFAULT_URL;
       cfg.cloud.token = CLOUD_DEFAULT_TOKEN;
       cfg.cloud.auto = true;
       cfg.cloud.lastError = '';
-      persistCfg();
+      if (cloudChanged) persistCfg();
     }
     if (!Array.isArray(cfg.deleted)) cfg.deleted = [];
     cfg.deleted = cfg.deleted.filter(function (d) {
@@ -1923,8 +1868,11 @@
       return true;
     });
   }
-  function syncNow() {
-    if (!cloudReady()) { toast('Configure the Google Sheet URL and token first.'); return; }
+  function syncNow(silent) {
+    if (!cloudReady()) {
+      if (!silent) toast('Configure the Google Sheet URL and token first.');
+      return;
+    }
     if (cloudBusy) return;
     cloudSetBusy(true);
     var tasks = [];
@@ -1956,11 +1904,11 @@
       .then(function () { return pullFromSheet(true); })
       .then(function () {
         var p = pendingSyncCount();
-        toast(p ? 'Pushed changes; ' + p + ' still pending.' : 'Synced with Google Sheet.', 2600);
+        if (!silent) toast(p ? 'Pushed changes; ' + p + ' still pending.' : 'Synced with Google Sheet.', 2600);
       })
       .catch(function (err) {
         cloudError(err);
-        toast('Sync failed: ' + err.message, 4500);
+        if (!silent) toast('Sync failed: ' + err.message, 4500);
       })
       .then(function () { cloudSetBusy(false); });
   }
@@ -2175,28 +2123,6 @@
     });
     $('#btnExportJson').onclick = exportJson;
     $('#btnExportCsv').onclick = exportCsv;
-    $('#btnCloudSave').onclick = function () {
-      if (readCloudForm(false)) toast('Google Sheet settings saved.');
-      else if (!cfg.cloud.url && !cfg.cloud.token) toast('Cloud sync disabled.', 2000);
-      else toast('Enter both the Web App URL and token to enable sync.');
-    };
-    $('#btnCloudToken').onclick = generateToken;
-    $('#btnCloudTest').onclick = testCloud;
-    $('#btnCloudPush').onclick = pushAllToSheet;
-    $('#btnCloudPull').onclick = function () {
-      if (!readCloudForm(true)) return;
-      cloudSetBusy(true);
-      pullFromSheet(false)
-        .catch(function (err) {
-          cloudError(err);
-          toast('Pull failed: ' + err.message, 4500);
-        })
-        .then(function () { cloudSetBusy(false); });
-    };
-    $('#btnCloudSync').onclick = function () {
-      if (!readCloudForm(true)) return;
-      syncNow();
-    };
     $('#importFile').onchange = function () {
       if (this.files && this.files[0]) importJson(this.files[0]);
       this.value = '';
@@ -2257,7 +2183,7 @@
     });
 
     window.addEventListener('online', function () {
-      if (cloudReady() && cfg.cloud.auto) setTimeout(function () { syncNow(); }, 1200);
+      if (cloudReady() && cfg.cloud.auto) setTimeout(function () { syncNow(true); }, 1200);
     });
 
     setInterval(function () {
@@ -2270,7 +2196,6 @@
   /* ============================ boot ============================ */
   function init() {
     load();
-    applyCloudHash();
     var sel = $('#fCat');
     sel.innerHTML = Object.keys(CATS).map(function (k) {
       return '<option value="' + k + '">' + CATS[k].label + '</option>';
@@ -2279,7 +2204,6 @@
     bindUI();
     ensureCaptureMap();
     renderAll();
-    populateCloudForm();
     updateReadouts();
     updateTrackingUI();
     updatePill();
@@ -2293,7 +2217,10 @@
         cloudSetBusy(true);
         pullFromSheet(true)
           .catch(function (err) { cloudError(err); })
-          .then(function () { cloudSetBusy(false); });
+          .then(function () {
+            cloudSetBusy(false);
+            if (pendingSyncCount() > 0) syncNow(true);
+          });
       }, 1800);
     }
   }
