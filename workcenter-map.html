@@ -464,18 +464,18 @@
       <div class="row-between">
         <div>
           <h2>Google Sheet sync</h2>
-          <p class="desc">Mirror work centers to a Google Sheet so every phone shares one live map. Location data syncs; photos stay on this device.</p>
+          <p class="desc">Pre-configured for everyone — every device shares the same Google Sheet automatically. Location data syncs; photos stay on this device.</p>
         </div>
         <span class="status" id="cloudStatus">Not configured</span>
       </div>
 
       <div class="cloud-grid">
         <div class="full">
-          <label class="fld" for="cloudUrl">Apps Script Web App URL</label>
+          <label class="fld" for="cloudUrl">Apps Script Web App URL (shared)</label>
           <input type="text" id="cloudUrl" placeholder="https://script.google.com/macros/s/…/exec" autocomplete="off" spellcheck="false">
         </div>
         <div>
-          <label class="fld" for="cloudToken">Sync token</label>
+          <label class="fld" for="cloudToken">Sync token (shared)</label>
           <input type="password" id="cloudToken" placeholder="Shared secret token" autocomplete="off">
         </div>
         <div class="cloud-actions" style="margin:0">
@@ -494,10 +494,11 @@
         <div class="spacer"></div>
         <span class="cloud-pending" id="cloudPending">No cloud sync yet</span>
       </div>
-      <div class="cloud-msg" id="cloudMsg">Paste your Apps Script Web App URL and token to enable cloud sync.</div>
+      <div class="cloud-msg" id="cloudMsg">Connecting to the shared Google Sheet…</div>
 
       <details class="setup">
-        <summary>One-time Google Sheet setup</summary>
+        <summary>Admin: connection setup (not needed for normal users)</summary>
+        <p class="cloud-msg" style="margin:0 0 8px">Normal users need no setup — the shared endpoint and token are built into this app and auto-sync is on by default.</p>
         <ol class="cloud-steps">
           <li>Create a Google Sheet (or open an existing one).</li>
           <li>Open <b>Extensions → Apps Script</b>, delete the starter code, and paste the script
@@ -511,7 +512,7 @@
           <li>Click <b>Test connection</b>, then <b>Push all to Sheet</b>. On other phones, use the same URL
             and token and press <b>Pull from Sheet</b>.</li>
         </ol>
-        <p class="cloud-msg">The token protects the endpoint — keep it private. Photos are not uploaded to the Sheet.</p>
+        <p class="cloud-msg">The shared sheet is link-accessible — keep the sheet link private. Photos are not uploaded to the Sheet.</p>
       </details>
     </div>
 
@@ -638,6 +639,9 @@
     { code: 'ALEL',  name: 'ALEL'  },
     { code: 'AEFML', name: 'AEFML' }
   ];
+  // Shared Google Sheet endpoint — enabled automatically for every user.
+  var CLOUD_DEFAULT_URL = 'https://script.google.com/macros/s/AKfycby9IC9Cf_HNXhQud5Byt_0ZKQsuxmd9pdM7Mao48Zy_IuegKPjM536h9-tYou2yCVY1EQ/exec';
+  var CLOUD_DEFAULT_TOKEN = 'MADMisFjnZ7KqXUzii53Dx7MepuCBYT4';
 
   var centers = [];
   var cfg = { basemap: 'hybrid', follow: true, trail: true, labels: false,
@@ -795,10 +799,13 @@
         return c;
       }) : [];
     } catch (e) { centers = []; }
+    var storedCfg = null;
     try {
       var rc = localStorage.getItem(LS_CFG);
-      if (rc) cfg = Object.assign(cfg, JSON.parse(rc) || {});
+      if (rc) storedCfg = JSON.parse(rc) || null;
     } catch (e) {}
+    if (storedCfg) cfg = Object.assign(cfg, storedCfg);
+    var hadCloud = !!(storedCfg && storedCfg.cloud && typeof storedCfg.cloud === 'object');
     if (cfg.basemap !== 'street' && cfg.basemap !== 'dark') cfg.basemap = 'hybrid';
     if (typeof cfg.labels !== 'boolean') cfg.labels = false;
     if (!Array.isArray(cfg.customSbus)) cfg.customSbus = [];
@@ -809,6 +816,13 @@
     });
     cfg.cloud.auto = !!cfg.cloud.auto;
     cfg.cloud.lastSync = toMs(cfg.cloud.lastSync);
+    if (!hadCloud && CLOUD_DEFAULT_URL && CLOUD_DEFAULT_TOKEN) {
+      cfg.cloud.url = CLOUD_DEFAULT_URL;
+      cfg.cloud.token = CLOUD_DEFAULT_TOKEN;
+      cfg.cloud.auto = true;
+      cfg.cloud.lastError = '';
+      persistCfg();
+    }
     if (!Array.isArray(cfg.deleted)) cfg.deleted = [];
     cfg.deleted = cfg.deleted.filter(function (d) {
       return d && d.id;
@@ -1741,8 +1755,8 @@
     var m = $('#cloudMsg');
     if (m) {
       m.textContent = c.lastError ? c.lastError :
-        (ready ? 'Endpoint configured. Use Sync now, or Push all the first time, then Pull on other devices.' :
-         'Paste your Apps Script Web App URL and token to enable cloud sync.');
+        (ready ? 'Connected to the shared Google Sheet — sync runs automatically on every device.' :
+         'Shared connection not configured. Contact the admin or enter an endpoint below.');
     }
   }
   function populateCloudForm() {
