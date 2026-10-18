@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>WorkCenter Map · SBU</title>
 <meta name="theme-color" content="#1F4E78">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="description" content="Capture factory work center locations with GPS, name them, and view them live on a satellite map.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231F4E78'/%3E%3Cpath d='M32 12c-8 0-14 6-14 14 0 10 14 26 14 26s14-16 14-26c0-8-6-14-14-14z' fill='%2317A589'/%3E%3Ccircle cx='32' cy='26' r='5' fill='%23fff'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -162,6 +165,9 @@
 
   /* ---------- list ---------- */
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 14px}
+  .sync-line{font-size:11.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}
+  .sync-line.busy{color:var(--navy2);font-weight:600}
+  .sync-line.bad{color:var(--red);font-weight:600}
   .toolbar input[type=search]{flex:1;min-width:170px;max-width:320px}
   .toolbar select{width:auto;min-width:140px}
   .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
@@ -435,6 +441,7 @@
           <button class="btn primary" id="btnAddManual">+ Add manually</button>
         </div>
       </div>
+      <div class="sync-line" id="syncLine" hidden></div>
 
       <div class="toolbar">
         <input type="search" id="search" placeholder="Search name, code or zone…">
@@ -1625,7 +1632,7 @@
     return new Promise(function (resolve, reject) {
       var cb = 'wcm_cb_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
       var script = document.createElement('script');
-      var timer = setTimeout(function () { finish(); reject(new Error('Google Sheet timed out.')); }, 25000);
+      var timer = setTimeout(function () { finish(); reject(new Error('Google Sheet timed out.')); }, 60000);
       function finish() {
         clearTimeout(timer);
         try { delete window[cb]; } catch (e) { window[cb] = undefined; }
@@ -1675,25 +1682,53 @@
     }
     updateCloudUI();
   }
+  function updateSyncLine() {
+    var el = $('#syncLine');
+    if (!el) return;
+    var pending = pendingSyncCount();
+    if (cloudBusy) {
+      el.hidden = false;
+      el.className = 'sync-line busy';
+      el.textContent = 'Syncing with Google Sheet…';
+      return;
+    }
+    if (cfg.cloud.lastError) {
+      el.hidden = false;
+      el.className = 'sync-line bad';
+      el.textContent = 'Sync failed: ' + cfg.cloud.lastError +
+        ' — check internet, then reopen the app in Chrome/Safari and retry.';
+      return;
+    }
+    if (cfg.cloud.lastSync) {
+      el.hidden = false;
+      el.className = 'sync-line';
+      el.textContent = 'Last synced ' +
+        new Date(cfg.cloud.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) +
+        (pending ? ' · ' + pending + ' change' + (pending === 1 ? '' : 's') + ' pending' : ' · up to date');
+      return;
+    }
+    el.hidden = true;
+  }
   function updateCloudUI() {
     var st = $('#cloudStatus');
-    if (!st) return;
     var c = cfg.cloud || {};
     var ready = cloudReady();
     var pending = pendingSyncCount();
-    var txt = 'Not configured', cls = 'status';
-    if (ready && cloudBusy) { txt = 'Syncing…'; cls += ' warn'; }
-    else if (ready && c.lastError) { txt = 'Sync error'; cls += ' bad'; }
-    else if (ready && pending) {
-      txt = pending + ' pending';
-      cls += ' warn';
+    if (st) {
+      var txt = 'Not configured', cls = 'status';
+      if (ready && cloudBusy) { txt = 'Syncing…'; cls += ' warn'; }
+      else if (ready && c.lastError) { txt = 'Sync error'; cls += ' bad'; }
+      else if (ready && pending) {
+        txt = pending + ' pending';
+        cls += ' warn';
+      }
+      else if (ready && c.lastSync) {
+        txt = 'Synced ' + new Date(c.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        cls += ' live';
+      } else if (ready) { txt = 'Ready'; }
+      st.textContent = txt;
+      st.className = cls;
     }
-    else if (ready && c.lastSync) {
-      txt = 'Synced ' + new Date(c.lastSync).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      cls += ' live';
-    } else if (ready) { txt = 'Ready'; }
-    st.textContent = txt;
-    st.className = cls;
     var p = $('#cloudPending');
     if (p) {
       p.textContent = !ready ? 'No cloud sync yet' :
@@ -1705,6 +1740,7 @@
         (ready ? 'Connected to the shared Google Sheet — sync runs automatically on every device.' :
          'Shared connection not configured. Contact the admin or enter an endpoint below.');
     }
+    updateSyncLine();
   }
   function populateCloudForm() {
     if (!$('#cloudUrl')) return;
