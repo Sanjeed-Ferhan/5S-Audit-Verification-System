@@ -598,9 +598,9 @@
     { code: 'ALEL',  name: 'ALEL'  },
     { code: 'AEFML', name: 'AEFML' }
   ];
-  // Shared Google Sheet endpoint — enabled automatically for every user.
-  var CLOUD_DEFAULT_URL = 'https://script.google.com/macros/s/AKfycby9IC9Cf_HNXhQud5Byt_0ZKQsuxmd9pdM7Mao48Zy_IuegKPjM536h9-tYou2yCVY1EQ/exec';
-  var CLOUD_DEFAULT_TOKEN = 'MADMisFjnZ7KqXUzii53Dx7MepuCBYT4';
+  // Shared sync proxy — enabled automatically for every user.
+  var CLOUD_DEFAULT_URL = 'https://wcm-sheet-sync.vercel.app/api/sync';
+  var CLOUD_DEFAULT_TOKEN = 'shared';
 
   var centers = [];
   var cfg = { basemap: 'hybrid', follow: true, trail: true, labels: false,
@@ -1644,27 +1644,43 @@
       document.body.appendChild(script);
     });
   }
-  function cloudGet(params) {
-    return jsonpGet_(cloudUrl_(params)).then(function (j) {
-      if (!j || !j.ok) throw new Error((j && j.error) || 'Google Sheet returned an error.');
-      return j;
+  function cloudFetchJson(url) {
+    return new Promise(function (resolve, reject) {
+      var ctrl = window.AbortController ? new AbortController() : null;
+      var timer = setTimeout(function () {
+        if (ctrl) { try { ctrl.abort(); } catch (e) {} }
+        reject(new Error('Sync timed out. Check the internet and tap Sync again.'));
+      }, 60000);
+      fetch(url, { method: 'GET', cache: 'no-store', signal: ctrl ? ctrl.signal : undefined })
+        .then(function (r) {
+          if (!r.ok) throw new Error('Sync service returned HTTP ' + r.status);
+          return r.text();
+        })
+        .then(function (txt) {
+          var j;
+          try { j = JSON.parse(txt); }
+          catch (e) { throw new Error('Sync service returned an invalid response.'); }
+          if (!j || j.ok !== true) throw new Error((j && j.error) || 'Sync failed.');
+          clearTimeout(timer);
+          resolve(j);
+        })
+        .catch(function (err) {
+          clearTimeout(timer);
+          reject(err);
+        });
     });
   }
-  function cloudJsonpWrite(payload) {
+  function cloudGet(params) {
+    return cloudFetchJson(cloudUrl_(params));
+  }
+  function cloudPost(payload) {
     var params = { action: payload.action };
     if (payload.action === 'upsert') params.record = JSON.stringify(payload.record || {});
     else if (payload.action === 'delete') {
       params.id = payload.id || '';
       params.updatedAt = payload.updatedAt || Date.now();
     }
-    return jsonpGet_(cloudUrl_(params)).then(function (j) {
-      if (!j || !j.ok) throw new Error((j && j.error) || 'Google Sheet rejected the change.');
-      return j;
-    });
-  }
-  function cloudPost(payload) {
-    // JSONP GET writes avoid Apps Script / browser CORS restrictions.
-    return cloudJsonpWrite(payload);
+    return cloudGet(params);
   }
   function cloudError(err) {
     cfg.cloud.lastError = String((err && err.message) || err || 'Sync failed');
